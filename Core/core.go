@@ -27,7 +27,7 @@ var (
 		"BackAccessory",
 		"WaistAccessory",
 	}
-)
+) 
 
 type Catalog struct {
 	Items []Item
