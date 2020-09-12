@@ -99,15 +99,16 @@ func init() {
 }
 
 func GrabItem(assetid, userid int64) (count int32) {
+	start:
 	res, err := http.Get(fmt.Sprintf("https://inventory.roblox.com/v1/users/%d/items/Asset/%d", assetid, userid))
 	if err != nil {
-		return 0
+		goto start
 	}
 	defer res.Body.Close()
 	var data *ItemData
 	err = json.NewDecoder(res.Body).Decode(&data)
 	if err != nil {
-		return 0
+		goto start
 	}
 	for range data.Data {
 		count++
