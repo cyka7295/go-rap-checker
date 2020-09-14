@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -91,8 +90,6 @@ func init() {
 
 			// refreshing value & RAP
 			time.Sleep(time.Minute * 5)
-			p := reflect.ValueOf(cat).Elem()
-			p.Set(reflect.Zero(p.Type()))
 		}
 	}()
 	<-loaded
