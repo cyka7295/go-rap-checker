@@ -26,7 +26,8 @@ var (
 		"BackAccessory",
 		"WaistAccessory",
 	}
-) 
+	values = make(map[int64]int32)
+)
 
 type Catalog struct {
 	Items []Item
@@ -41,7 +42,7 @@ type Item struct {
 
 type ItemData struct {
 	Data []struct {
-		ID 		   int64 `json:"id"`
+		ID	int64 `json:"id"`
 		InstanceID int64 `json:"instanceId"`
 	} `json:"data"`
 }
@@ -49,14 +50,14 @@ type ItemData struct {
 type Resp struct {
 	NextPageCursor string `json:"nextPageCursor"`
 	Data []struct {
-		AssetID int `json:"assetId"`
+		AssetID int64 `json:"assetId"`
 		Name string `json:"name"`
-		RAP  int64  `json:"recentAveragePrice"`
+		RAP  int32  `json:"recentAveragePrice"`
 	} `json:"data"`
 }
 
 func init() {
-	// rap & value for priv inventories is taken from rolimons
+	// rap & value for priv inventories is taken from rolimons every 5 mins
 
 	loaded := make(chan int)
 	go func() {
@@ -86,6 +87,10 @@ func init() {
 					Value: val,
 				})
 			}
+			for _, item := range cat.Items {
+				values[item.AssetID] = item.Value
+			}
+
 			loaded <- 1
 
 			// refreshing value & RAP
@@ -114,28 +119,33 @@ func GrabItem(assetid, userid int64) (count int32) {
 }
 
 
-func GetRAPFromAssetType(userid int64, rap *int64, assettype, cursor string, wg *sync.WaitGroup) {
+func GetRAPFromAssetType(userid int64, rap, val *int32, assettype, cursor string, wg *sync.WaitGroup) {
+	start:
 	res, err := http.Get(fmt.Sprintf("https://inventory.roblox.com/v1/users/%d/assets/collectibles?limit=100&assettype=%s&cursor=" + cursor, userid, assettype))
 	if err != nil {
-		return
+		goto start
 	}
 	defer res.Body.Close()
 	var resp *Resp
-	json.NewDecoder(res.Body).Decode(&resp)
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		goto start
+	}
 	if resp.NextPageCursor != "" {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			GetRAPFromAssetType(userid, rap, assettype, resp.NextPageCursor, wg)
+			GetRAPFromAssetType(userid, rap, val, assettype, resp.NextPageCursor, wg)
 		}()
 	}
 
 	for _, item := range resp.Data {
 		*rap += item.RAP
+		*val += values[item.AssetID]
 	}
 }
 
-func GetRAP(id int64) (rap int64) {
+func GetRAP(id int64) (rap, val int32) {
 	var wg sync.WaitGroup
 	wg.Add(len(assettypes))
 
@@ -143,7 +153,7 @@ func GetRAP(id int64) (rap int64) {
 		asset := asset
 		go func() {
 			defer wg.Done()
-			GetRAPFromAssetType(id, &rap, asset, "", &wg)
+			GetRAPFromAssetType(id, &rap, &val, asset, "", &wg)
 		}()
 
 	}
